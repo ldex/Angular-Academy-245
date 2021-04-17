@@ -18,11 +18,15 @@ export class ProductListComponent implements OnInit {
   title: string = 'Products';
   selectedProduct: Product;
   products$: Observable<Product[]>;
+  productsNumber$: Observable<number>;
+  productsTotalNumber$: Observable<number>;
   mostExpensiveProduct$: Observable<Product>;
+  isLastPage$: Observable<boolean>;
   errorMessage;
 
   // Pagination
-  pageSize = 5;
+  productsToLoad = this.productService.productsToLoad;
+  pageSize = this.productsToLoad / 2;
   start = 0;
   end = this.pageSize;
   currentPage = 1;
@@ -39,6 +43,13 @@ export class ProductListComponent implements OnInit {
     this.end += this.pageSize;
     this.currentPage++;
     this.selectedProduct = null;
+  }
+
+  loadMore() {
+    let skip = this.end;
+    let take = this.productsToLoad;
+
+    this.productService.initProducts(skip, take);
   }
 
   onSelect(product: Product) {
@@ -62,15 +73,41 @@ export class ProductListComponent implements OnInit {
 
     this.products$ = this
                       .productService
-                      .products$;
+                      .products$
+                      .pipe(
+                        filter(products => products.length > 0)
+                      );
+
+    this.productsNumber$ = this
+                            .products$
+                            .pipe(
+                              map(products => products.length),
+                              startWith(0)
+                            );
+
+    this.productsTotalNumber$ = this
+                                  .productService
+                                  .productsTotalNumber$;
 
     this.mostExpensiveProduct$ = this
                                     .productService
                                     .mostExpensiveProduct$;
+
+    this.isLastPage$ = combineLatest([this.productsNumber$, this.productsTotalNumber$])
+                        .pipe(
+                          map(([productsNumber, productsTotalNumber]) =>
+                            productsNumber >= productsTotalNumber
+                          )
+                        );
   }
 
   refresh() {
-    this.productService.initProducts();
-    this.router.navigateByUrl('/products'); // Self route navigation
+    // Reset list (new Http get)
+    this.productService.resetList();
+
+    // Reset pagination
+    this.start = 0;
+    this.end = this.pageSize;
+    this.currentPage = 1;
   }
 }
